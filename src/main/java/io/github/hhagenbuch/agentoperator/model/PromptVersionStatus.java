@@ -18,4 +18,7 @@ public class PromptVersionStatus {
 
     /** Human-readable detail — on a rollback, the tail of the eval report. */
     public String message;
+
+    /** ISO-8601 instant the eval Job was launched; used to enforce the gate timeout. */
+    public String evalStartedAt;
 }

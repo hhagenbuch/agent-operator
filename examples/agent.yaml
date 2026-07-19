@@ -26,3 +26,4 @@ spec:
   evalGate:
     datasetConfigMap: support-golden-cases
     minPassRate: "0.9"
+    # image: ghcr.io/hhagenbuch/agent-evals:0.1.0   # default; override to pin your own eval image

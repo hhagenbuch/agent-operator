@@ -44,6 +44,8 @@ spec:
                 properties:
                   datasetConfigMap:
                     type: string
+                  image:
+                    type: string
                   minPassRate:
                     type: string
                 type: object

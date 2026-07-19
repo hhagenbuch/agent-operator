@@ -109,6 +109,24 @@ Pending ──► Canary ──► Evaluating ──► Promoted
 - **CRDs from Java sources.** Fabric8 `crd-generator-apt` emits CRD YAML from
   the Java model classes — single source of truth.
 - **Validation in the reconciler**, not admission webhooks (see non-goals).
+- **Promotion mutates `Agent.spec` — a deliberate, known trade-off.** On promote
+  the operator writes the winning prompt into `Agent.spec.activePromptVersion`
+  (and `systemPrompt`). That means the operator and a human/GitOps both own parts
+  of the same `spec`, so a naive `kubectl apply` of the *original* Agent manifest
+  would silently revert a promotion. The clean-room alternative is to keep the
+  active version in `Agent.status` (operator-owned) and have the Agent controller
+  render from status — spec = desired-by-human, status = observed/derived. We
+  chose spec for the MVP because it makes the active prompt a first-class,
+  `kubectl get`-visible field and keeps the Agent controller trivial. The
+  intended resolution: treat `PromptVersion` resources as the GitOps source of
+  truth (you apply *those*, not an inline `Agent.systemPrompt`), with
+  `activePromptVersion` moving to status in a later version. Calling this out
+  explicitly — spec-vs-status ownership is the classic operator footgun.
+- **Gate timeout.** The eval Job carries `activeDeadlineSeconds`, and the
+  reconciler independently times the gate from `status.evalStartedAt`. Either
+  path turns a wedged eval (deleted Job, image-pull failure, canary never up)
+  into a `RolledBack` with "eval gate timed out" instead of a PromptVersion stuck
+  in `Evaluating` forever.
 
 ## 5. Non-goals (MVP)
 
