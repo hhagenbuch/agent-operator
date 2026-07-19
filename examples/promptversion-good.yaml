@@ -1,0 +1,15 @@
+# A well-behaved PromptVersion. Against an English-asserting eval dataset the
+# canary passes, so the operator promotes it: Pending → Canary → Evaluating → Promoted,
+# and the Agent's active prompt is patched (rolling the main Deployment).
+apiVersion: agents.hhagenbuch.io/v1alpha1
+kind: PromptVersion
+metadata:
+  name: support-v2
+  namespace: agents
+spec:
+  agentRef: support-agent
+  systemPrompt: |
+    You are a concise, friendly support agent. Answer in clear English and use
+    your tools for anything factual.
+  rollout:
+    strategy: EvalGatedCanary

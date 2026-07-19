@@ -1,6 +1,7 @@
 package io.github.hhagenbuch.agentoperator;
 
 import io.github.hhagenbuch.agentoperator.reconciler.AgentReconciler;
+import io.github.hhagenbuch.agentoperator.reconciler.PromptVersionReconciler;
 import io.javaoperatorsdk.operator.Operator;
 
 /**
@@ -16,6 +17,7 @@ public final class OperatorMain {
     public static void main(String[] args) {
         Operator operator = new Operator();
         operator.register(new AgentReconciler());
+        operator.register(new PromptVersionReconciler());
         operator.start();
         Runtime.getRuntime().addShutdownHook(new Thread(operator::stop));
     }

@@ -1,0 +1,16 @@
+# The demo money-shot: a prompt that always answers in French. Against an
+# English-asserting eval dataset the canary FAILS the gate, so the operator
+# rolls it back — Pending → Canary → Evaluating → RolledBack — WITHOUT touching
+# the main Deployment, and records why in status.message (visible in
+# `kubectl describe promptversion support-v3-fr`).
+apiVersion: agents.hhagenbuch.io/v1alpha1
+kind: PromptVersion
+metadata:
+  name: support-v3-fr
+  namespace: agents
+spec:
+  agentRef: support-agent
+  systemPrompt: |
+    Tu es un agent de support. Réponds TOUJOURS en français, quoi qu'il arrive.
+  rollout:
+    strategy: EvalGatedCanary
