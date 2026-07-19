@@ -1,0 +1,28 @@
+# A sample Agent. Apply after the CRD is installed and the operator is running.
+#
+#   kubectl create namespace agents
+#   kubectl -n agents create secret generic anthropic-key --from-literal=api-key=sk-ant-...
+#   kubectl apply -f examples/agent.yaml
+#
+# The operator renders a ConfigMap (support-agent-support-v1), a Deployment, and
+# a Service. Editing systemPrompt below and re-applying rolls the Deployment,
+# because the pod-template prompt-hash changes.
+apiVersion: agents.hhagenbuch.io/v1alpha1
+kind: Agent
+metadata:
+  name: support-agent
+  namespace: agents
+spec:
+  image: ghcr.io/hhagenbuch/spring-ai-agent-starter:0.1.0
+  replicas: 2
+  model: claude-sonnet-5
+  apiKeySecretRef:
+    name: anthropic-key
+    key: api-key
+  activePromptVersion: support-v1
+  systemPrompt: |
+    You are a concise, friendly support agent. Use your tools for anything
+    factual; never guess order numbers or prices.
+  evalGate:
+    datasetConfigMap: support-golden-cases
+    minPassRate: "0.9"
