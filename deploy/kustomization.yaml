@@ -1,0 +1,9 @@
+# Install the operator: kubectl apply -k deploy
+# (CRDs are generated from the Java model — regenerate with hack/sync-crds.sh.)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - crds/agent-crd.yaml
+  - crds/promptversion-crd.yaml
+  - rbac.yaml
+  - operator.yaml

@@ -55,12 +55,16 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
                         .serverSideApply();
                 client.resource(CanaryResources.canaryService(pv, ns)).serverSideApply();
                 log.info("PromptVersion '{}': canary created", pv.getMetadata().getName());
+                EventRecorder.record(client, pv, EventRecorder.NORMAL, "CanaryCreated",
+                        "Canary Deployment/Service/ConfigMap created (off the main Service)");
             }
             case CREATE_JOB -> {
                 client.resource(CanaryResources.evalJob(pv, ns, EVALS_IMAGE,
                         agent.getSpec().evalGate.datasetConfigMap,
                         minPassRate(agent), agent.getSpec().apiKeySecretRef)).serverSideApply();
                 log.info("PromptVersion '{}': eval Job launched", pv.getMetadata().getName());
+                EventRecorder.record(client, pv, EventRecorder.NORMAL, "EvalStarted",
+                        "Eval Job launched against the canary at min-pass-rate " + minPassRate(agent));
             }
             case PROMOTE -> {
                 agent.getSpec().activePromptVersion = pv.getMetadata().getName();
@@ -73,12 +77,16 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
                 status(pv).evalPassRate = "pass";
                 status(pv).message = "promoted: eval gate passed; Agent now serves this prompt";
                 log.info("PromptVersion '{}': PROMOTED", pv.getMetadata().getName());
+                EventRecorder.record(client, pv, EventRecorder.NORMAL, "Promoted",
+                        "Eval gate passed; Agent '" + pv.getSpec().agentRef + "' now serves this prompt");
             }
             case ROLLBACK -> {
                 status(pv).evalPassRate = "fail";
                 status(pv).message = "rolled back: eval gate failed. " + reportTail(client, ns, pv);
                 cleanupCanary(client, ns, pv);
                 log.info("PromptVersion '{}': ROLLED BACK", pv.getMetadata().getName());
+                EventRecorder.record(client, pv, EventRecorder.WARNING, "RolledBack",
+                        "Eval gate failed; main Deployment left untouched. " + status(pv).message);
             }
             case WAIT -> { /* eval Job still running — requeue */ }
             case DONE -> { /* terminal */ }

@@ -1,5 +1,7 @@
 package io.github.hhagenbuch.agentoperator.model;
 
+import io.fabric8.crd.generator.annotation.PrinterColumn;
+
 /**
  * Desired state of an agent workload. {@code activePromptVersion} is managed by
  * the operator (Phase 2's PromptVersion controller patches it on promotion); in
@@ -11,10 +13,12 @@ public class AgentSpec {
     /** Desired replica count for the main Deployment. */
     public int replicas = 1;
     /** Model id the agent runs (e.g. claude-sonnet-5). */
+    @PrinterColumn(name = "MODEL")
     public String model;
     /** Where the agent's API key lives. */
     public SecretKeyRef apiKeySecretRef;
     /** The promotion-managed active prompt version name; names the rendered ConfigMap. */
+    @PrinterColumn(name = "ACTIVE")
     public String activePromptVersion;
     /** Phase-1 inline prompt content for the active version (superseded by PromptVersion in Phase 2). */
     public String systemPrompt;
