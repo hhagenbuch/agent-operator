@@ -7,9 +7,13 @@
 > gate promotion on an eval suite run in-cluster, and roll back automatically
 > on regression. Prompts have SLOs now.
 
-**Status: Phase 0 — design.** This repo currently contains the design only.
-See [`docs/DESIGN.md`](docs/DESIGN.md) for the RFC (CRDs, state machine,
-reconcile sequence). Code lands in phases; roadmap below.
+[![CI](https://github.com/hhagenbuch/agent-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/hhagenbuch/agent-operator/actions/workflows/ci.yml)
+
+**Status: Phase 1 — the `Agent` controller.** The operator reconciles an
+`Agent` into a Deployment + Service + ConfigMap; a prompt change rolls the
+Deployment via a pod-template hash. The `Agent` CRD is generated from the Java
+model at build time. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full RFC;
+roadmap below.
 
 ## The idea
 
@@ -49,17 +53,44 @@ three repos closing into a platform is the point.
 
 ## Roadmap
 
-- [ ] Phase 0 — design doc (this)
-- [ ] Phase 1 — `Agent` controller (Deployment/Service/ConfigMap reconcile) on `kind`
+- [x] Phase 0 — design doc
+- [x] Phase 1 — `Agent` controller (Deployment/Service/ConfigMap reconcile) on `kind`
 - [ ] Phase 2 — `PromptVersion` controller + in-cluster eval-gated canary + auto-rollback
 - [ ] Phase 3 — printer columns, Events, Helm/kustomize install, quickstart, GIF
 - [ ] Later — traffic-weighted canary (Gateway API), drift detection (nightly re-eval), `ModelVersion` CRD
 
-## Quickstart (target)
+## Build
 
-`kind create cluster` → install the operator → `kubectl apply` an `Agent` →
-curl its chat endpoint, all in under five minutes. See `docs/DESIGN.md` until
-Phase 1 lands.
+```bash
+mvn verify
+```
+
+Java 21 + Maven. The build compiles the operator, runs the reconcile tests, and
+generates the `Agent` CRD from the Java model via `crd-generator-apt` (into
+`target/classes/META-INF/fabric8/`).
+
+## Quickstart (kind)
+
+With `kind`, `kubectl`, and Docker, and a sibling checkout of
+[spring-ai-agent-starter](https://github.com/hhagenbuch/spring-ai-agent-starter)
+at `../spring-ai-agent-starter`:
+
+```bash
+hack/demo.sh
+```
+
+It spins up a `kind` cluster, builds + loads the agent image, installs the CRD,
+runs the operator, applies [`examples/agent.yaml`](examples/agent.yaml), and
+shows the Deployment/Service/ConfigMap the operator created. Edit the Agent's
+`systemPrompt` and re-apply to watch the Deployment roll.
+
+Manual install (operator + CRD only):
+
+```bash
+mvn -DskipTests package
+kubectl apply -f target/classes/META-INF/fabric8/agents.agents.hhagenbuch.io-v1.yml
+java -jar target/agent-operator-0.1.0-SNAPSHOT.jar   # uses your kubeconfig
+```
 
 ## License
 

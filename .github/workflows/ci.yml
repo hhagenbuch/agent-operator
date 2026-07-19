@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build, test, and generate CRDs
+        run: mvn -B verify
+      - name: Upload generated CRD
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crd
+          path: target/classes/META-INF/fabric8/agents.agents.hhagenbuch.io-v1.yml
