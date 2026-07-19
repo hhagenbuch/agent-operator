@@ -57,7 +57,7 @@ three repos closing into a platform is the point.
 - [x] Phase 0 — design doc
 - [x] Phase 1 — `Agent` controller (Deployment/Service/ConfigMap reconcile) on `kind`
 - [x] Phase 2 — `PromptVersion` controller + in-cluster eval-gated canary + auto-rollback
-- [ ] Phase 3 — printer columns, Events, Helm/kustomize install, quickstart, GIF
+- [x] Phase 3 — printer columns, Events, kustomize install, quickstart
 - [ ] Later — traffic-weighted canary (Gateway API), drift detection (nightly re-eval), `ModelVersion` CRD
 
 ## Build
@@ -85,12 +85,37 @@ runs the operator, applies [`examples/agent.yaml`](examples/agent.yaml), and
 shows the Deployment/Service/ConfigMap the operator created. Edit the Agent's
 `systemPrompt` and re-apply to watch the Deployment roll.
 
-Manual install (operator + CRD only):
+## Install in-cluster (kustomize)
+
+CRDs + RBAC + the operator Deployment, in one apply:
+
+```bash
+docker build -t ghcr.io/hhagenbuch/agent-operator:0.1.0 .
+kind load docker-image ghcr.io/hhagenbuch/agent-operator:0.1.0   # for a kind cluster
+kubectl apply -k deploy
+```
+
+The CRDs under `deploy/crds/` are generated from the Java model — regenerate
+them after a model change with `hack/sync-crds.sh`.
+
+Run it locally instead (uses your kubeconfig):
 
 ```bash
 mvn -DskipTests package
-kubectl apply -f target/classes/META-INF/fabric8/agents.agents.hhagenbuch.io-v1.yml
-java -jar target/agent-operator-0.1.0-SNAPSHOT.jar   # uses your kubeconfig
+kubectl apply -k deploy/crds
+java -jar target/agent-operator-0.1.0-SNAPSHOT.jar
+```
+
+## Observability
+
+Every transition emits a Kubernetes **Event**, so `kubectl describe promptversion
+<name>` reads like a changelog (`CanaryCreated` → `EvalStarted` → `Promoted` or
+`RolledBack`), and printer columns surface the state at a glance:
+
+```console
+$ kubectl -n agents get agents
+NAME            MODEL             ACTIVE
+support-agent   claude-sonnet-5   support-v2
 ```
 
 ## Eval-gated rollout (the demo)

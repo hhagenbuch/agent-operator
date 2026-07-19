@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-operator-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-operator
+  namespace: agent-operator-system
+  labels:
+    app: agent-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-operator
+  template:
+    metadata:
+      labels:
+        app: agent-operator
+    spec:
+      serviceAccountName: agent-operator
+      containers:
+        - name: operator
+          image: ghcr.io/hhagenbuch/agent-operator:0.1.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
