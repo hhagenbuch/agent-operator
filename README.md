@@ -9,11 +9,12 @@
 
 [![CI](https://github.com/hhagenbuch/agent-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/hhagenbuch/agent-operator/actions/workflows/ci.yml)
 
-**Status: Phase 1 — the `Agent` controller.** The operator reconciles an
-`Agent` into a Deployment + Service + ConfigMap; a prompt change rolls the
-Deployment via a pod-template hash. The `Agent` CRD is generated from the Java
-model at build time. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full RFC;
-roadmap below.
+**Status: Phase 2 — eval-gated canary.** The operator reconciles an `Agent` into
+a Deployment + Service + ConfigMap, and rolls out a `PromptVersion` through a
+canary + in-cluster eval Job: `Pending → Canary → Evaluating → Promoted |
+RolledBack`. A passing gate promotes (patching the Agent's active prompt); a
+failing gate rolls back untouched and records why. Both CRDs are generated from
+the Java model at build time. See [`docs/DESIGN.md`](docs/DESIGN.md) for the RFC.
 
 ## The idea
 
@@ -55,7 +56,7 @@ three repos closing into a platform is the point.
 
 - [x] Phase 0 — design doc
 - [x] Phase 1 — `Agent` controller (Deployment/Service/ConfigMap reconcile) on `kind`
-- [ ] Phase 2 — `PromptVersion` controller + in-cluster eval-gated canary + auto-rollback
+- [x] Phase 2 — `PromptVersion` controller + in-cluster eval-gated canary + auto-rollback
 - [ ] Phase 3 — printer columns, Events, Helm/kustomize install, quickstart, GIF
 - [ ] Later — traffic-weighted canary (Gateway API), drift detection (nightly re-eval), `ModelVersion` CRD
 
@@ -91,6 +92,39 @@ mvn -DskipTests package
 kubectl apply -f target/classes/META-INF/fabric8/agents.agents.hhagenbuch.io-v1.yml
 java -jar target/agent-operator-0.1.0-SNAPSHOT.jar   # uses your kubeconfig
 ```
+
+## Eval-gated rollout (the demo)
+
+With the operator running and an `Agent` applied (plus an `agent-evals` image and
+an English-asserting dataset ConfigMap):
+
+```bash
+hack/sabotage-demo.sh
+```
+
+- A **good** `PromptVersion` passes the in-cluster eval Job and is **Promoted** —
+  the operator patches `Agent.spec.activePromptVersion`, rolling the main
+  Deployment.
+- A **sabotaged** one (`systemPrompt: "always answer in French"`) **fails** the
+  gate against the English dataset and is **RolledBack**, leaving the main
+  Deployment untouched and recording why:
+
+```console
+$ kubectl -n agents get promptversions
+NAME            PHASE        PASSRATE
+support-v2      Promoted     pass
+support-v3-fr   RolledBack   fail
+```
+
+The promotion mechanism is deliberately boring: the canary is a 1-replica
+Deployment off the main Service; the gate is a Kubernetes Job running the
+`agent-evals` jar with `--target` the canary and `--min-pass-rate` from the
+Agent's `evalGate`. Exit 0 promotes, exit 1 rolls back — CI-style gating, but
+in-cluster against the real runtime.
+
+> The state machine (`Pending → Canary → Evaluating → Promoted | RolledBack`)
+> lives as a pure function in `PromotionStateMachine` and is exhaustively unit
+> tested; the reconciler only performs the cluster effects it returns.
 
 ## License
 
