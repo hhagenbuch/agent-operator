@@ -26,6 +26,8 @@ public final class CanaryResources {
     private static final int PORT = 8080;
     private static final String DATASET_MOUNT = "/data";
     private static final String DATASET_FILE = "dataset.yaml";
+    /** Kube-side cap on the eval Job; the reconciler enforces the same budget independently. */
+    public static final long EVAL_DEADLINE_SECONDS = 300;
 
     private CanaryResources() {
     }
@@ -114,6 +116,7 @@ public final class CanaryResources {
                 .endMetadata()
                 .withNewSpec()
                 .withBackoffLimit(0)
+                .withActiveDeadlineSeconds(EVAL_DEADLINE_SECONDS)
                 .withNewTemplate()
                 .withNewMetadata().withLabels(labels(pv)).endMetadata()
                 .withNewSpec()

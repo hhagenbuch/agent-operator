@@ -15,40 +15,47 @@ class PromotionStateMachineTest {
 
     @Test
     void pendingCreatesTheCanary() {
-        assertThat(decide(Phase.PENDING, JobOutcome.NONE))
+        assertThat(decide(Phase.PENDING, JobOutcome.NONE, false))
                 .isEqualTo(new Decision(Action.CREATE_CANARY, Phase.CANARY));
     }
 
     @Test
     void canaryLaunchesTheEvalJob() {
-        assertThat(decide(Phase.CANARY, JobOutcome.NONE))
+        assertThat(decide(Phase.CANARY, JobOutcome.NONE, false))
                 .isEqualTo(new Decision(Action.CREATE_JOB, Phase.EVALUATING));
     }
 
     @ParameterizedTest
     @EnumSource(value = JobOutcome.class, names = {"NONE", "RUNNING"})
     void evaluatingWaitsWhileTheJobRuns(JobOutcome outcome) {
-        assertThat(decide(Phase.EVALUATING, outcome))
+        assertThat(decide(Phase.EVALUATING, outcome, false))
                 .isEqualTo(new Decision(Action.WAIT, Phase.EVALUATING));
     }
 
+    @ParameterizedTest
+    @EnumSource(value = JobOutcome.class, names = {"NONE", "RUNNING"})
+    void evaluatingTimesOutIntoRollbackWhenTheJobNeverReports(JobOutcome outcome) {
+        assertThat(decide(Phase.EVALUATING, outcome, true))
+                .isEqualTo(new Decision(Action.ROLLBACK, Phase.ROLLED_BACK));
+    }
+
     @Test
-    void passingEvalPromotes() {
-        assertThat(decide(Phase.EVALUATING, JobOutcome.SUCCEEDED))
+    void passingEvalPromotesEvenIfTheDeadlineIsAlsoUp() {
+        assertThat(decide(Phase.EVALUATING, JobOutcome.SUCCEEDED, true))
                 .isEqualTo(new Decision(Action.PROMOTE, Phase.PROMOTED));
     }
 
     @Test
     void failingEvalRollsBack() {
-        assertThat(decide(Phase.EVALUATING, JobOutcome.FAILED))
+        assertThat(decide(Phase.EVALUATING, JobOutcome.FAILED, false))
                 .isEqualTo(new Decision(Action.ROLLBACK, Phase.ROLLED_BACK));
     }
 
     @ParameterizedTest
     @EnumSource(JobOutcome.class)
     void terminalPhasesStayPut(JobOutcome outcome) {
-        assertThat(decide(Phase.PROMOTED, outcome).action()).isEqualTo(Action.DONE);
-        assertThat(decide(Phase.ROLLED_BACK, outcome).action()).isEqualTo(Action.DONE);
+        assertThat(decide(Phase.PROMOTED, outcome, false).action()).isEqualTo(Action.DONE);
+        assertThat(decide(Phase.ROLLED_BACK, outcome, true).action()).isEqualTo(Action.DONE);
     }
 
     @Test

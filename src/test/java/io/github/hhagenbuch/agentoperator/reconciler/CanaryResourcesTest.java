@@ -69,6 +69,8 @@ class CanaryResourcesTest {
                 "evals:1", "support-golden-cases", "0.9", secret);
 
         assertThat(job.getSpec().getBackoffLimit()).isZero(); // no retries — one clean pass/fail
+        assertThat(job.getSpec().getActiveDeadlineSeconds())
+                .isEqualTo(CanaryResources.EVAL_DEADLINE_SECONDS); // a stuck eval can't run forever
         var container = job.getSpec().getTemplate().getSpec().getContainers().get(0);
         assertThat(container.getImage()).isEqualTo("evals:1");
         assertThat(container.getArgs()).containsSubsequence(

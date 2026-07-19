@@ -2,9 +2,11 @@ package io.github.hhagenbuch.agentoperator.reconciler;
 
 /**
  * The PromptVersion promotion state machine as a pure function:
- * {@code (currentPhase, evalJobOutcome) → (action, nextPhase)}. Keeping the
- * decision separate from cluster I/O makes the whole promotion/rollback policy
- * exhaustively unit-testable — the reconciler just executes the returned action.
+ * {@code (currentPhase, evalJobOutcome, deadlineExceeded) → (action, nextPhase)}.
+ * Keeping the decision separate from cluster I/O makes the whole promotion/
+ * rollback policy exhaustively unit-testable — the reconciler just executes the
+ * returned action. {@code deadlineExceeded} guarantees a terminal outcome even if
+ * the eval Job never reports (deleted, wedged on image pull, canary never up).
  *
  * <pre>
  * Pending ──► Canary ──► Evaluating ──► Promoted
@@ -58,14 +60,17 @@ public final class PromotionStateMachine {
     private PromotionStateMachine() {
     }
 
-    public static Decision decide(Phase current, JobOutcome outcome) {
+    public static Decision decide(Phase current, JobOutcome outcome, boolean deadlineExceeded) {
         return switch (current) {
             case PENDING -> new Decision(Action.CREATE_CANARY, Phase.CANARY);
             case CANARY -> new Decision(Action.CREATE_JOB, Phase.EVALUATING);
             case EVALUATING -> switch (outcome) {
                 case SUCCEEDED -> new Decision(Action.PROMOTE, Phase.PROMOTED);
                 case FAILED -> new Decision(Action.ROLLBACK, Phase.ROLLED_BACK);
-                case NONE, RUNNING -> new Decision(Action.WAIT, Phase.EVALUATING);
+                // A gate that never reports still terminates: time out into a rollback.
+                case NONE, RUNNING -> deadlineExceeded
+                        ? new Decision(Action.ROLLBACK, Phase.ROLLED_BACK)
+                        : new Decision(Action.WAIT, Phase.EVALUATING);
             };
             case PROMOTED -> new Decision(Action.DONE, Phase.PROMOTED);
             case ROLLED_BACK -> new Decision(Action.DONE, Phase.ROLLED_BACK);

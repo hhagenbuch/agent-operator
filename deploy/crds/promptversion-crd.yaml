@@ -49,6 +49,8 @@ spec:
             properties:
               evalPassRate:
                 type: string
+              evalStartedAt:
+                type: string
               message:
                 type: string
               phase:
