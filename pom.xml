@@ -14,7 +14,7 @@
     <properties>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <josdk.version>4.9.5</josdk.version>
+        <josdk.version>5.5.0</josdk.version>
         <fabric8.version>6.13.3</fabric8.version>
         <junit.version>6.1.2</junit.version>
         <assertj.version>3.27.7</assertj.version>
