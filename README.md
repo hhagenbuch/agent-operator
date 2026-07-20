@@ -9,7 +9,7 @@
 
 [![CI](https://github.com/hhagenbuch/agent-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/hhagenbuch/agent-operator/actions/workflows/ci.yml)
 
-**Status: Phase 2 — eval-gated canary.** The operator reconciles an `Agent` into
+**Status: Phase 3 — eval-gated canary, Events + kustomize install.** The operator reconciles an `Agent` into
 a Deployment + Service + ConfigMap, and rolls out a `PromptVersion` through a
 canary + in-cluster eval Job: `Pending → Canary → Evaluating → Promoted |
 RolledBack`. A passing gate promotes (patching the Agent's active prompt); a
@@ -31,17 +31,16 @@ GitOps for prompts. Two CRDs in `agents.hhagenbuch.io/v1alpha1`:
 RolledBack`, with the eval report summary in its conditions. `kubectl get
 promptversions` telling you *why* a prompt rolled back is the point.
 
-```
-apply PromptVersion ─► canary Deployment (1 replica, no Service traffic)
-                          │
-                          ▼
-                     eval Job: agent-evals jar --target canary --min-pass-rate
-                          │
-              exit 0 ─────┴───── exit 1
-                 │                  │
-             Promote            RolledBack
-   (patch Agent.activePromptVersion,   (delete canary, main untouched,
-    roll main Deployment, del canary)   attach eval report to status + Events)
+```mermaid
+flowchart TB
+    PV[apply PromptVersion] --> CN[canary Deployment<br/>1 replica · no Service traffic]
+    CN --> EJ[eval Job<br/>agent-evals jar · --target canary · --min-pass-rate]
+    EJ -->|exit 0| PR[Promoted<br/>patch Agent.activePromptVersion<br/>roll main · delete canary]
+    EJ -->|exit 1| RB[RolledBack<br/>delete canary · main untouched<br/>eval report → status + Events]
+    subgraph sm["PromotionStateMachine · pure function"]
+      direction LR
+      P0[Pending] --> P1[Canary] --> P2[Evaluating] --> P3[Promoted / RolledBack]
+    end
 ```
 
 ## Why a Java operator
@@ -66,7 +65,7 @@ three repos closing into a platform is the point.
 mvn verify
 ```
 
-Java 21 + Maven. The build compiles the operator, runs the reconcile tests, and
+Java 25 + Maven. The build compiles the operator, runs the reconcile tests, and
 generates the `Agent` CRD from the Java model via `crd-generator-apt` (into
 `target/classes/META-INF/fabric8/`).
 
