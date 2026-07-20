@@ -18,10 +18,21 @@ updates:
         patterns: ["org.apache.maven.plugins:*"]
       test-libs:
         patterns: ["org.junit*", "org.assertj:*", "org.mockito:*"]
-    # NOTE: fabric8 and the Java Operator SDK are deliberately NOT grouped. Their
-    # versions are coupled — josdk pins the kubernetes-client transitively, while
-    # fabric8.version drives crd-generator-apt — so a mismatched bump puts two
-    # fabric8 majors on one classpath. Keep them individually reviewable.
+      # The whole fabric8 family moves together or not at all. Bumping one
+      # artifact (crd-generator-apt) while the client stayed pinned by the
+      # operator SDK is what put two fabric8 majors on one classpath.
+      kubernetes-client:
+        patterns: ["io.fabric8:*", "io.javaoperatorsdk:*"]
+    ignore:
+      # A fabric8 or JOSDK MAJOR is a coordinated migration by definition — JOSDK
+      # pins the kubernetes-client transitively while fabric8.version drives
+      # crd-generator-apt, so the two must be moved deliberately, in one PR, with
+      # a CRD diff. Dependabot must never be able to propose half of it.
+      # Target when we do it: JOSDK 5.5.0 + fabric8 7.x (see README roadmap).
+      - dependency-name: "io.fabric8:*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "io.javaoperatorsdk:*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
