@@ -57,6 +57,14 @@ three repos closing into a platform is the point.
 - [x] Phase 1 — `Agent` controller (Deployment/Service/ConfigMap reconcile) on `kind`
 - [x] Phase 2 — `PromptVersion` controller + in-cluster eval-gated canary + auto-rollback
 - [x] Phase 3 — printer columns, Events, kustomize install, quickstart
+- [ ] **JOSDK 4.9.5 → 5.5.0 + fabric8 7.x** — one PR, coordinated. The SDK pins the
+      kubernetes-client transitively while `fabric8.version` drives `crd-generator-apt`,
+      so they must move together; bumping one alone puts two fabric8 majors on a single
+      classpath (that mistake and its revert: [#18](https://github.com/hhagenbuch/agent-operator/pull/18)).
+      Requires the JOSDK 5 Reconciler/EventSource API migration. Definition of done: CRD
+      diff in the PR description, and the sabotage demo re-run on `kind`. Not urgent —
+      6.13.3 is consistent and green — but the target version is pinned so the migration
+      is mechanical when we want it.
 - [ ] Later — traffic-weighted canary (Gateway API), drift detection (nightly re-eval), `ModelVersion` CRD
 
 ## Build

@@ -15,6 +15,19 @@ jobs:
           cache: maven
       - name: Build, test, and generate CRDs
         run: mvn -B verify
+      # The CRDs in deploy/ are generated artifacts, so they can silently drift from
+      # the model — either because someone changed an @Spec field and forgot to
+      # regenerate, or because a generator bump changed the output. Regenerate and
+      # diff: cheap, and it retires both failure modes.
+      - name: deploy/crds is in sync with the generated CRDs
+        run: |
+          cp target/classes/META-INF/fabric8/agents.agents.hhagenbuch.io-v1.yml deploy/crds/agent-crd.yaml
+          cp target/classes/META-INF/fabric8/promptversions.agents.hhagenbuch.io-v1.yml deploy/crds/promptversion-crd.yaml
+          if ! git diff --exit-code deploy/crds/; then
+            echo "::error::deploy/crds/ is out of sync with the generated CRDs (diff above). Run 'mvn verify' and commit the regenerated files."
+            exit 1
+          fi
+
       - name: Upload generated CRDs
         if: always()
         uses: actions/upload-artifact@v7
