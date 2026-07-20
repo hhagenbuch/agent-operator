@@ -65,6 +65,13 @@ three repos closing into a platform is the point.
       diff in the PR description, and the sabotage demo re-run on `kind`. Not urgent —
       6.13.3 is consistent and green — but the target version is pinned so the migration
       is mechanical when we want it.
+- [ ] **Full promote-path e2e in CI, recorded.** A GitHub Actions job that stands up
+      `kind`, runs the complete arc (good `PromptVersion` → **Promoted**, sabotaged →
+      **RolledBack**) against a real key from secrets, and publishes the recording as a
+      build artifact. Closes two gaps with one workflow: the operator has no end-to-end
+      test in CI today, and the laptop demo can only show the rejection half because a
+      keyless canary fails every case. CI is also the right home for the key — clean
+      network, no local TLS workarounds, no personal credential on a work machine.
 - [ ] Later — traffic-weighted canary (Gateway API), drift detection (nightly re-eval), `ModelVersion` CRD
 
 ## Build
@@ -127,12 +134,36 @@ support-agent   claude-sonnet-5   support-v2
 
 ## Eval-gated rollout (the demo)
 
+![the eval gate rejecting a PromptVersion while the main Deployment survives](docs/operator-eval-gate-demo.gif)
+
+**Keyless demo: the gate rejecting a prompt, and the main Deployment surviving it.**
+The recording is scripted — [`hack/sabotage-demo.tape`](hack/sabotage-demo.tape) driven
+by [vhs](https://github.com/charmbracelet/vhs) — so it reproduces rather than being
+hand-captured. A canary is created, a Kubernetes Job runs the eval suite against it,
+the gate returns a genuine non-zero verdict, and the operator rolls back while
+`support-agent` stays `2/2` and never moves.
+
+> **What it does *not* show.** This is the keyless path, so the canary has no model
+> behind it and fails every case with a fallback answer — which means a *good* prompt
+> would fail this dataset too. The GIF demonstrates the gate saying **no** and the
+> blast radius being zero; it does not demonstrate the gate telling a good prompt from
+> a sabotaged one. That discrimination needs a real key, so the full
+> `Promoted → RolledBack` arc runs in CI (see the roadmap) rather than on a laptop.
+> The `Promoted` half below is from a real keyed run.
+
 With the operator running and an `Agent` applied (plus an `agent-evals` image and
 an English-asserting dataset ConfigMap):
 
 ```bash
+kubectl -n agents create configmap support-golden-cases \
+  --from-file=dataset.yaml=examples/golden-cases.yaml
 hack/sabotage-demo.sh
 ```
+
+The dataset is checked in at [`examples/golden-cases.yaml`](examples/golden-cases.yaml)
+and uses **deterministic assertions only** (`contains`, `regex`, `tool_called`) — no
+`judge` cases, so the gate needs no API key of its own and its verdict is reproducible
+rather than model-scored.
 
 - A **good** `PromptVersion` passes the in-cluster eval Job and is **Promoted** —
   the operator patches `Agent.spec.activePromptVersion`, rolling the main

@@ -1,0 +1,36 @@
+# The eval dataset the gate runs against a canary.
+#
+#   kubectl -n agents create configmap support-golden-cases --from-file=dataset.yaml=examples/golden-cases.yaml
+#
+# Deterministic assertions only — `contains`, `regex`, `tool_called`. No `judge`
+# cases, so the gate needs no ANTHROPIC_API_KEY of its own and its verdict is
+# reproducible rather than model-scored.
+#
+# `target` is a placeholder: the operator overrides it with `--target
+# http://<canary-service>:8080/api/chat` when it builds the eval Job.
+name: support-golden-cases
+target: http://localhost:8080/api/chat
+cases:
+  - id: grounded-math
+    prompt: "What is 973 * 481? Use your calculator tool."
+    assert:
+      # The product, not a plausible-looking number.
+      - type: contains
+        value: "468013"
+      # ...and it must actually have called the tool, not recited an answer.
+      - type: tool_called
+        value: calculator
+
+  - id: answers-in-english
+    prompt: "In one short sentence, what are your support hours?"
+    assert:
+      # Cheap language check: an English answer contains English function words.
+      # A prompt that forces another language fails this without a judge.
+      - type: regex
+        value: "(?i)\\b(the|are|is|we|our|hours)\\b"
+
+  - id: follows-instruction
+    prompt: "Reply with exactly the word ACKNOWLEDGED and nothing else."
+    assert:
+      - type: contains
+        value: "ACKNOWLEDGED"

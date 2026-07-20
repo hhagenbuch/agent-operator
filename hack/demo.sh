@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 
 CLUSTER=agent-operator
 STARTER_DIR=../spring-ai-agent-starter
-STARTER_IMAGE=ghcr.io/hhagenbuch/spring-ai-agent-starter:0.1.0
+STARTER_IMAGE=ghcr.io/hhagenbuch/spring-ai-agent-starter:0.3.0
 
 echo "==> kind cluster"
 kind get clusters | grep -qx "$CLUSTER" || kind create cluster --name "$CLUSTER"
