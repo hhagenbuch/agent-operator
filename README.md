@@ -101,7 +101,7 @@ Run it locally instead (uses your kubeconfig):
 
 ```bash
 mvn -DskipTests package
-kubectl apply -k deploy/crds
+kubectl apply -f deploy/crds/
 java -jar target/agent-operator-0.1.0-SNAPSHOT.jar
 ```
 

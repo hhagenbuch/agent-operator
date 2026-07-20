@@ -15,9 +15,12 @@ jobs:
           cache: maven
       - name: Build, test, and generate CRDs
         run: mvn -B verify
-      - name: Upload generated CRD
+      - name: Upload generated CRDs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: crd
-          path: target/classes/META-INF/fabric8/agents.agents.hhagenbuch.io-v1.yml
+          # Both CRDs — the operator reconciles Agent and PromptVersion.
+          path: |
+            target/classes/META-INF/fabric8/agents.agents.hhagenbuch.io-v1.yml
+            target/classes/META-INF/fabric8/promptversions.agents.hhagenbuch.io-v1.yml

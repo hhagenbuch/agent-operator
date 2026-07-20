@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end local demo on kind. Requires: kind, kubectl, docker, mvn, java 21,
+# End-to-end local demo on kind. Requires: kind, kubectl, docker, mvn, java 25,
 # and a sibling checkout of spring-ai-agent-starter at ../spring-ai-agent-starter.
 #
 # Usage: hack/demo.sh
