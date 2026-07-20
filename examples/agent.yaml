@@ -4,6 +4,14 @@
 #   kubectl -n agents create secret generic anthropic-key --from-literal=api-key=sk-ant-...
 #   kubectl apply -f examples/agent.yaml
 #
+# The image below is not published to a public registry — build it from a sibling
+# checkout of spring-ai-agent-starter and load it into your cluster:
+#
+#   ( cd ../spring-ai-agent-starter \
+#       && mvn -q -DskipTests spring-boot:build-image \
+#            -Dspring-boot.build-image.imageName=ghcr.io/hhagenbuch/spring-ai-agent-starter:0.3.0 )
+#   kind load docker-image ghcr.io/hhagenbuch/spring-ai-agent-starter:0.3.0 --name agent-operator
+#
 # The operator renders a ConfigMap (support-agent-support-v1), a Deployment, and
 # a Service. Editing systemPrompt below and re-applying rolls the Deployment,
 # because the pod-template prompt-hash changes.
@@ -13,7 +21,7 @@ metadata:
   name: support-agent
   namespace: agents
 spec:
-  image: ghcr.io/hhagenbuch/spring-ai-agent-starter:0.1.0
+  image: ghcr.io/hhagenbuch/spring-ai-agent-starter:0.3.0
   replicas: 2
   model: claude-sonnet-5
   apiKeySecretRef:
