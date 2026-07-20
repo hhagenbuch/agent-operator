@@ -16,7 +16,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <josdk.version>4.9.5</josdk.version>
         <fabric8.version>7.8.0</fabric8.version>
-        <junit.version>5.10.3</junit.version>
+        <junit.version>6.1.2</junit.version>
         <assertj.version>3.27.7</assertj.version>
     </properties>
 
