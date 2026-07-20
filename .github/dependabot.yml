@@ -1,5 +1,10 @@
 # Keep dependencies current so the repo reads as actively maintained.
 # Dependabot opens PRs; CI (build + tests) gates them like any other change.
+#
+# Updates are GROUPED: without grouping, every coordinate gets its own PR, which
+# means ~10 PRs a week here, each running a full `mvn -B verify`, and every merge
+# rebases the rest. Grouped PRs also prove the combination builds, which a pile of
+# individually-green PRs never does.
 version: 2
 updates:
   - package-ecosystem: "maven"
@@ -8,13 +13,33 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     labels: ["dependencies"]
+    groups:
+      build-plugins:
+        patterns: ["org.apache.maven.plugins:*"]
+      test-libs:
+        patterns: ["org.junit*", "org.assertj:*", "org.mockito:*"]
+    # NOTE: fabric8 and the Java Operator SDK are deliberately NOT grouped. Their
+    # versions are coupled — josdk pins the kubernetes-client transitively, while
+    # fabric8.version drives crd-generator-apt — so a mismatched bump puts two
+    # fabric8 majors on one classpath. Keep them individually reviewable.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
     labels: ["dependencies"]
+    groups:
+      github-actions:
+        patterns: ["*"]
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
     labels: ["dependencies"]
+    ignore:
+      # The build stage (maven:*-eclipse-temurin-N) and the runtime stage
+      # (eclipse-temurin:N-jre) must move together and deliberately. A lone major
+      # bump builds on JDK N+1 while still running on JDK N, and swaps a pinned
+      # maven tag for a floating one.
+      - dependency-name: "maven"
+        update-types: ["version-update:semver-major"]
