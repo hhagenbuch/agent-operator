@@ -10,6 +10,6 @@ public class EvalGate {
     public String datasetConfigMap;
     /** Minimum pass rate, as a string (e.g. "0.9") to match kubectl/CRD conventions. */
     public String minPassRate;
-    /** Image running the agent-evals jar; defaults to {@code ghcr.io/hhagenbuch/agent-evals:0.1.0}. */
+    /** Image running the agent-evals jar; defaults to {@code ghcr.io/hhagenbuch/agent-evals:0.2.1}. */
     public String image;
 }

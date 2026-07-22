@@ -8,7 +8,7 @@
 #   hack/demo.sh                                    # kind cluster, CRDs, operator, Agent
 #   kubectl -n agents create configmap support-golden-cases \
 #       --from-file=dataset.yaml=examples/golden-cases.yaml
-#   kind load docker-image ghcr.io/hhagenbuch/agent-evals:0.1.0 --name agent-operator
+#   kind load docker-image ghcr.io/hhagenbuch/agent-evals:0.2.1 --name agent-operator
 #
 # WHAT THIS RECORDING DOES AND DOES NOT SHOW
 #
