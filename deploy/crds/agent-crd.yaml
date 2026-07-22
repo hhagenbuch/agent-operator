@@ -25,6 +25,12 @@ spec:
       name: MODEL
       priority: 0
       type: string
+    - description: "True while the SLO error budget is exhausted: new PromptVersions\
+        \ are refused unless annotated agents.hhagenbuch.io/slo-exempt=fix."
+      jsonPath: .status.promotionsFrozen
+      name: FROZEN
+      priority: 0
+      type: boolean
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -55,12 +61,27 @@ spec:
                 type: string
               replicas:
                 type: integer
+              sloPolicy:
+                properties:
+                  minSamples:
+                    type: integer
+                  samplesConfigMap:
+                    type: string
+                  target:
+                    type: string
+                  window:
+                    type: string
+                type: object
               systemPrompt:
                 type: string
             type: object
           status:
             properties:
               observedPromptVersion:
+                type: string
+              promotionsFrozen:
+                type: boolean
+              sloMessage:
                 type: string
             type: object
         type: object

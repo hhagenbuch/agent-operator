@@ -189,6 +189,38 @@ in-cluster against the real runtime.
 > lives as a pure function in `PromotionStateMachine` and is exhaustively unit
 > tested; the reconciler only performs the cluster effects it returns.
 
+## SLO promotion freeze
+
+The enforcement half of the [agent-slo](https://github.com/hhagenbuch/agent-slo)
+RFC: give the Agent an SLO policy, and the operator refuses new prompt
+promotions while the error budget is exhausted.
+
+```yaml
+spec:
+  sloPolicy:
+    target: "0.95"     # continuous-eval pass-rate SLO
+    window: "7d"       # rolling window (7d/12h/5m/30s)
+    minSamples: 50     # below this the SLI is not actionable — never freezes
+```
+
+A scheduled eval runner appends run results to the `<agent>-slo-samples`
+ConfigMap (`samples.jsonl`, one `{"ts","passed","total"}` per line); the
+operator recomputes the windowed pass rate each reconcile and writes
+`status.promotionsFrozen` (printer column `FROZEN`).
+
+While frozen, a new `PromptVersion` parks at phase `Frozen` with an Event and a
+message saying why — no canary, no gate, no promotion. Two ways out:
+
+- the window rolls past the bad samples and consumption falls **below 75%**
+  (the freeze exits with hysteresis, through the approval band, so it cannot
+  flap at the trip point), after which the parked version proceeds normally; or
+- a human annotates `agents.hhagenbuch.io/slo-exempt=fix`, asserting the change
+  restores the SLO. Exemption skips the **freeze**, never the **gate**: the
+  version still runs the full canary + eval Job.
+
+> Budget arithmetic (window filter, minimum-evidence rule, hysteresis) lives as
+> a pure function in `SloPolicyCheck`, unit tested like `PromotionStateMachine`.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

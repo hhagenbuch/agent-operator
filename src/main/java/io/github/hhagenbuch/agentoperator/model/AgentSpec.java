@@ -24,4 +24,6 @@ public class AgentSpec {
     public String systemPrompt;
     /** The eval gate promotions must pass. */
     public EvalGate evalGate;
+    /** Optional behavioral-SLO policy; when set, budget exhaustion freezes promotions. */
+    public SloPolicy sloPolicy;
 }

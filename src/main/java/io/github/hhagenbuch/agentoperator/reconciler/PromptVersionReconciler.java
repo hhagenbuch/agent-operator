@@ -34,7 +34,14 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
     private static final String DEFAULT_EVALS_IMAGE = "ghcr.io/hhagenbuch/agent-evals:0.1.0";
     /** Set to "true" to release an {@code AwaitingApproval} hold, "false" to reject it. */
     public static final String APPROVED_ANNOTATION = "agents.hhagenbuch.io/approved";
+    /** Set to "fix" to assert this PromptVersion restores the SLO: it passes a
+     *  promotion freeze (never the eval gate). */
+    public static final String SLO_EXEMPT_ANNOTATION = "agents.hhagenbuch.io/slo-exempt";
+    /** Cosmetic status.phase while refused by a freeze; not a {@link Phase} — it maps
+     *  back to {@code PENDING} so the promotion starts normally once the freeze lifts. */
+    public static final String FROZEN_PHASE = "Frozen";
     private static final Duration REQUEUE = Duration.ofSeconds(5);
+    private static final Duration FROZEN_RECHECK = Duration.ofSeconds(15);
     private static final Duration GATE_TIMEOUT = Duration.ofSeconds(CanaryResources.EVAL_DEADLINE_SECONDS);
 
     @Override
@@ -53,6 +60,28 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
         if (agent == null && needsAgent(decision)) {
             status(pv).message = "waiting: Agent '" + pv.getSpec().agentRef + "' not found";
             return UpdateControl.patchStatus(pv).rescheduleAfter(REQUEUE);
+        }
+
+        // SLO freeze gate: a promotion that has not started yet is refused while the
+        // Agent's error budget is exhausted. In-flight promotions are never interrupted.
+        if (current == Phase.PENDING && agent != null
+                && SloPolicyCheck.refusesPromotion(
+                        agent.getStatus() == null ? null : agent.getStatus().promotionsFrozen,
+                        exemptOf(pv))) {
+            boolean firstRefusal = !FROZEN_PHASE.equals(status(pv).phase);
+            status(pv).phase = FROZEN_PHASE;
+            status(pv).message = "refused: Agent '" + pv.getSpec().agentRef
+                    + "' promotions are frozen (SLO error budget exhausted). "
+                    + (agent.getStatus().sloMessage != null ? agent.getStatus().sloMessage + " " : "")
+                    + "Annotate " + SLO_EXEMPT_ANNOTATION + "=" + SloPolicyCheck.EXEMPT_VALUE
+                    + " only if this change restores the SLO; it will still run the eval gate.";
+            if (firstRefusal) {
+                log.warn("PromptVersion '{}': REFUSED — Agent '{}' is frozen",
+                        pv.getMetadata().getName(), pv.getSpec().agentRef);
+                EventRecorder.record(client, pv, EventRecorder.WARNING, "PromotionFrozen",
+                        status(pv).message);
+            }
+            return UpdateControl.patchStatus(pv).rescheduleAfter(FROZEN_RECHECK);
         }
 
         switch (decision.action()) {
@@ -133,6 +162,11 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
 
     private static boolean terminal(Phase phase) {
         return phase == Phase.PROMOTED || phase == Phase.ROLLED_BACK;
+    }
+
+    private static String exemptOf(PromptVersion pv) {
+        var annotations = pv.getMetadata().getAnnotations();
+        return annotations == null ? null : annotations.get(SLO_EXEMPT_ANNOTATION);
     }
 
     private static Approval approvalOf(PromptVersion pv) {
