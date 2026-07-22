@@ -33,8 +33,19 @@ spec:
             properties:
               agentRef:
                 type: string
+              evalGateOverride:
+                properties:
+                  datasetConfigMap:
+                    type: string
+                  image:
+                    type: string
+                  minPassRate:
+                    type: string
+                type: object
               model:
                 type: string
+              requireApproval:
+                type: boolean
               rollout:
                 properties:
                   canaryWeight:
