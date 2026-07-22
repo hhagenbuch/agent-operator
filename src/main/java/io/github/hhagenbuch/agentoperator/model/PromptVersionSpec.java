@@ -10,4 +10,17 @@ public class PromptVersionSpec {
     public String model;
     /** Rollout strategy. */
     public Rollout rollout = new Rollout();
+    /**
+     * When true, a passed eval gate holds at {@code AwaitingApproval} instead of
+     * promoting; a human (or a controller acting for one) releases it with the
+     * {@code agents.hhagenbuch.io/approved} annotation: {@code "true"} promotes,
+     * {@code "false"} rolls back. Null/false keeps the auto-promote behavior.
+     */
+    public Boolean requireApproval;
+    /**
+     * Optional per-version gate override. Any field set here (dataset, min pass
+     * rate, image) wins over the Agent's {@code evalGate} for THIS version only —
+     * e.g. gating one rollout against a suite extended with a new regression case.
+     */
+    public EvalGate evalGateOverride;
 }

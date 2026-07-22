@@ -3,8 +3,10 @@ package io.github.hhagenbuch.agentoperator.reconciler;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.github.hhagenbuch.agentoperator.model.Agent;
+import io.github.hhagenbuch.agentoperator.model.EvalGate;
 import io.github.hhagenbuch.agentoperator.model.PromptVersion;
 import io.github.hhagenbuch.agentoperator.model.PromptVersionStatus;
+import io.github.hhagenbuch.agentoperator.reconciler.PromotionStateMachine.Approval;
 import io.github.hhagenbuch.agentoperator.reconciler.PromotionStateMachine.Decision;
 import io.github.hhagenbuch.agentoperator.reconciler.PromotionStateMachine.JobOutcome;
 import io.github.hhagenbuch.agentoperator.reconciler.PromotionStateMachine.Phase;
@@ -30,6 +32,8 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
 
     private static final Logger log = LoggerFactory.getLogger(PromptVersionReconciler.class);
     private static final String DEFAULT_EVALS_IMAGE = "ghcr.io/hhagenbuch/agent-evals:0.1.0";
+    /** Set to "true" to release an {@code AwaitingApproval} hold, "false" to reject it. */
+    public static final String APPROVED_ANNOTATION = "agents.hhagenbuch.io/approved";
     private static final Duration REQUEUE = Duration.ofSeconds(5);
     private static final Duration GATE_TIMEOUT = Duration.ofSeconds(CanaryResources.EVAL_DEADLINE_SECONDS);
 
@@ -42,7 +46,8 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
         Job job = client.batch().v1().jobs().inNamespace(ns).withName(CanaryResources.evalJobName(pv)).get();
         JobOutcome outcome = outcomeOf(job);
         boolean deadlineExceeded = gateDeadlineExceeded(pv);
-        Decision decision = PromotionStateMachine.decide(current, outcome, deadlineExceeded);
+        Decision decision = PromotionStateMachine.decide(current, outcome, deadlineExceeded,
+                Boolean.TRUE.equals(pv.getSpec().requireApproval), approvalOf(pv));
 
         Agent agent = client.resources(Agent.class).inNamespace(ns).withName(pv.getSpec().agentRef).get();
         if (agent == null && needsAgent(decision)) {
@@ -62,13 +67,23 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
                         "Canary Deployment/Service/ConfigMap created (off the main Service)");
             }
             case CREATE_JOB -> {
-                client.resource(CanaryResources.evalJob(pv, ns, evalsImage(agent),
-                        agent.getSpec().evalGate.datasetConfigMap,
-                        minPassRate(agent), agent.getSpec().apiKeySecretRef)).serverSideApply();
+                EvalGate gate = effectiveGate(pv, agent);
+                client.resource(CanaryResources.evalJob(pv, ns, gate.image,
+                        gate.datasetConfigMap, gate.minPassRate, agent.getSpec().apiKeySecretRef))
+                        .serverSideApply();
                 status(pv).evalStartedAt = Instant.now().toString();
                 log.info("PromptVersion '{}': eval Job launched", pv.getMetadata().getName());
                 EventRecorder.record(client, pv, EventRecorder.NORMAL, "EvalStarted",
-                        "Eval Job launched against the canary at min-pass-rate " + minPassRate(agent));
+                        "Eval Job launched against the canary at min-pass-rate " + gate.minPassRate
+                                + (pv.getSpec().evalGateOverride != null ? " (per-version gate override)" : ""));
+            }
+            case HOLD -> {
+                status(pv).evalPassRate = "pass";
+                status(pv).message = "eval gate passed — awaiting approval: annotate this PromptVersion "
+                        + APPROVED_ANNOTATION + "=true to promote, =false to roll back";
+                log.info("PromptVersion '{}': gate passed, AWAITING APPROVAL", pv.getMetadata().getName());
+                EventRecorder.record(client, pv, EventRecorder.NORMAL, "AwaitingApproval",
+                        "Eval gate passed; promotion held for approval (" + APPROVED_ANNOTATION + ")");
             }
             case PROMOTE -> {
                 agent.getSpec().activePromptVersion = pv.getMetadata().getName();
@@ -85,14 +100,17 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
                         "Eval gate passed; Agent '" + pv.getSpec().agentRef + "' now serves this prompt");
             }
             case ROLLBACK -> {
-                boolean timedOut = outcome != JobOutcome.FAILED; // reached here via the deadline, not a fail
-                status(pv).evalPassRate = "fail";
-                status(pv).message = timedOut
+                boolean rejected = current == Phase.AWAITING_APPROVAL;
+                boolean timedOut = !rejected && outcome != JobOutcome.FAILED; // via the deadline, not a fail
+                status(pv).evalPassRate = rejected ? "pass" : "fail";
+                status(pv).message = rejected
+                        ? "rolled back: approval rejected (" + APPROVED_ANNOTATION + "=false)"
+                        : timedOut
                         ? "rolled back: eval gate timed out after " + GATE_TIMEOUT.toSeconds() + "s"
                         : "rolled back: eval gate failed. " + reportTail(client, ns, pv);
                 cleanupCanary(client, ns, pv);
-                log.info("PromptVersion '{}': ROLLED BACK ({})",
-                        pv.getMetadata().getName(), timedOut ? "timeout" : "eval failure");
+                log.info("PromptVersion '{}': ROLLED BACK ({})", pv.getMetadata().getName(),
+                        rejected ? "approval rejected" : timedOut ? "timeout" : "eval failure");
                 EventRecorder.record(client, pv, EventRecorder.WARNING, "RolledBack",
                         "Main Deployment left untouched. " + status(pv).message);
             }
@@ -117,6 +135,40 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
         return phase == Phase.PROMOTED || phase == Phase.ROLLED_BACK;
     }
 
+    private static Approval approvalOf(PromptVersion pv) {
+        var annotations = pv.getMetadata().getAnnotations();
+        String value = annotations == null ? null : annotations.get(APPROVED_ANNOTATION);
+        if ("true".equalsIgnoreCase(value)) {
+            return Approval.APPROVED;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return Approval.REJECTED;
+        }
+        return Approval.NONE;
+    }
+
+    /** The Agent's gate with any per-version override fields applied on top. */
+    private EvalGate effectiveGate(PromptVersion pv, Agent agent) {
+        EvalGate base = agent.getSpec().evalGate != null ? agent.getSpec().evalGate : new EvalGate();
+        EvalGate override = pv.getSpec().evalGateOverride;
+        EvalGate gate = new EvalGate();
+        gate.datasetConfigMap = firstNonNull(override == null ? null : override.datasetConfigMap,
+                base.datasetConfigMap);
+        gate.minPassRate = firstNonNull(override == null ? null : override.minPassRate,
+                base.minPassRate, "1.0");
+        gate.image = firstNonNull(override == null ? null : override.image, base.image, DEFAULT_EVALS_IMAGE);
+        return gate;
+    }
+
+    private static String firstNonNull(String... values) {
+        for (String value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private JobOutcome outcomeOf(Job job) {
         if (job == null || job.getStatus() == null) {
             return JobOutcome.NONE;
@@ -134,18 +186,6 @@ public class PromptVersionReconciler implements Reconciler<PromptVersion> {
 
     private String resolveModel(PromptVersion pv, Agent agent) {
         return pv.getSpec().model != null ? pv.getSpec().model : agent.getSpec().model;
-    }
-
-    private String minPassRate(Agent agent) {
-        return agent.getSpec().evalGate != null && agent.getSpec().evalGate.minPassRate != null
-                ? agent.getSpec().evalGate.minPassRate
-                : "1.0";
-    }
-
-    private String evalsImage(Agent agent) {
-        return agent.getSpec().evalGate != null && agent.getSpec().evalGate.image != null
-                ? agent.getSpec().evalGate.image
-                : DEFAULT_EVALS_IMAGE;
     }
 
     /** True once the eval has been running longer than the gate budget, so a stuck Job still terminates. */
