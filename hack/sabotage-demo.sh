@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The eval-gated-canary demo. Prereqs: a running cluster with the CRDs installed,
 # the operator running (hack/demo.sh gets you there), an `Agent` applied, plus:
-#   - an agent-evals image loaded as ghcr.io/hhagenbuch/agent-evals:0.1.0
+#   - an agent-evals image loaded as ghcr.io/hhagenbuch/agent-evals:0.2.1
 #   - a ConfigMap `support-golden-cases` in namespace `agents` whose `dataset.yaml`
 #     key holds English-asserting eval cases
 #   - ANTHROPIC_API_KEY present in the `anthropic-key` secret (for judge assertions)

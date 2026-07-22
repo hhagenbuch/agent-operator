@@ -31,7 +31,9 @@ import java.time.Instant;
 public class PromptVersionReconciler implements Reconciler<PromptVersion> {
 
     private static final Logger log = LoggerFactory.getLogger(PromptVersionReconciler.class);
-    private static final String DEFAULT_EVALS_IMAGE = "ghcr.io/hhagenbuch/agent-evals:0.1.0";
+    // 0.2.1 carries the runner's cold-start/transient-connection retry: a canary
+    // that is still warming up no longer fails the gate on a dropped connection.
+    private static final String DEFAULT_EVALS_IMAGE = "ghcr.io/hhagenbuch/agent-evals:0.2.1";
     /** Set to "true" to release an {@code AwaitingApproval} hold, "false" to reject it. */
     public static final String APPROVED_ANNOTATION = "agents.hhagenbuch.io/approved";
     /** Set to "fix" to assert this PromptVersion restores the SLO: it passes a
