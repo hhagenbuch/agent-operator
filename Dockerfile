@@ -1,5 +1,5 @@
 # Build the operator jar, then run it on a slim JRE.
-FROM maven:3.9-eclipse-temurin-25 AS build
+FROM maven:3-eclipse-temurin-24 AS build
 WORKDIR /src
 COPY pom.xml .
 COPY src ./src
